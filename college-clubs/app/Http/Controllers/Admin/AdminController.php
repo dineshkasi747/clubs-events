@@ -35,4 +35,25 @@ class AdminController extends Controller
 
         return view('admin.dashboard', compact('stats', 'recentRegistrations', 'clubs'));
     }
+
+    public function showNotificationsForm(): \Illuminate\View\View
+    {
+        return view('admin.notifications');
+    }
+
+    public function sendBroadcastNotification(\Illuminate\Http\Request $request): \Illuminate\Http\RedirectResponse
+    {
+        $request->validate([
+            'title' => ['required', 'string', 'max:100'],
+            'body' => ['required', 'string', 'max:250'],
+        ]);
+
+        $dispatched = \App\Services\FcmService::broadcastToStudents(
+            $request->title,
+            $request->body,
+            ['type' => 'broadcast', 'sent_by' => 'Admin']
+        );
+
+        return redirect()->back()->with('success', "Custom notification broadcast dispatched successfully to {$dispatched} student devices!");
+    }
 }

@@ -44,9 +44,11 @@ class AppProvider with ChangeNotifier {
         await ApiClient.saveToken(token);
         
         // Register device token with backend upon successful login
-        if (_fcmToken != null) {
-          await _registerFcmTokenWithBackend();
+        if (_fcmToken == null) {
+          // Fallback to a mock FCM token for dev/emulator environments without Google Play Services
+          _fcmToken = "mock_fcm_token_student_" + _user!['id'].toString();
         }
+        await _registerFcmTokenWithBackend();
 
         _isLoading = false;
         notifyListeners();

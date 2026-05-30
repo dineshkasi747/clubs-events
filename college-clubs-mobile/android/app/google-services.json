@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "160065176114",
+    "project_id": "kd-chat-app-2026",
+    "storage_bucket": "kd-chat-app-2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:160065176114:android:2c33dc23a0410b53be722b",
+        "android_client_info": {
+          "package_name": "com.example.kdchat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANzq8HY9_iVqxT6XNeUfPt2VkDxi7W5tI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -29,6 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Event Registrations
     Route::get('/registrations', [RegistrationController::class, 'index']);
     Route::post('/events/{id}/register', [RegistrationController::class, 'register']);
+    Route::post('/payments/verify', [RegistrationController::class, 'verifyPayment']);
 
     // FCM Device Tokens
     Route::post('/fcm-token', [AuthController::class, 'updateFcmToken']);

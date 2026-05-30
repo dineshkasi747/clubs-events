@@ -92,7 +92,7 @@ class YearsScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              evt.price > 0 ? '\$${evt.price.toStringAsFixed(2)}' : 'FREE',
+                              evt.price > 0 ? '₹${evt.price.toStringAsFixed(2)}' : 'FREE',
                               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF10B981)),
                             ),
                             const SizedBox(height: 4),

@@ -17,6 +17,7 @@ class ApiClient {
             options.headers['Authorization'] = 'Bearer $token';
           }
           options.headers['Accept'] = 'application/json';
+          options.headers['ngrok-skip-browser-warning'] = 'true';
           return handler.next(options);
         },
         onError: (DioException e, handler) {

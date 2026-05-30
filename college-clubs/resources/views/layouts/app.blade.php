@@ -67,11 +67,13 @@
                         @if(auth()->user()->isAdmin())
                             <a href="{{ route('admin.dashboard') }}" class="text-sm font-semibold {{ request()->routeIs('admin.dashboard') ? 'text-indigo-400' : 'text-slate-300 hover:text-white' }} transition-colors">Dashboard</a>
                             <a href="{{ route('admin.clubs.index') }}" class="text-sm font-semibold {{ request()->routeIs('admin.clubs.index') ? 'text-indigo-400' : 'text-slate-300 hover:text-white' }} transition-colors">Club Management</a>
+                            <a href="{{ route('admin.notifications.index') }}" class="text-sm font-semibold {{ request()->routeIs('admin.notifications.*') ? 'text-indigo-400' : 'text-slate-300 hover:text-white' }} transition-colors">Broadcast Alert</a>
                         @endif
 
                         @if(auth()->user()->isPresident())
                             <a href="{{ route('president.dashboard') }}" class="text-sm font-semibold {{ request()->routeIs('president.dashboard') ? 'text-indigo-400' : 'text-slate-300 hover:text-white' }} transition-colors">Club Hub</a>
                             <a href="{{ route('president.events.index') }}" class="text-sm font-semibold {{ request()->routeIs('president.events.*') ? 'text-indigo-400' : 'text-slate-300 hover:text-white' }} transition-colors">Events Portal</a>
+                            <a href="{{ route('president.notifications.index') }}" class="text-sm font-semibold {{ request()->routeIs('president.notifications.*') ? 'text-indigo-400' : 'text-slate-300 hover:text-white' }} transition-colors">Broadcast Alert</a>
                             <a href="{{ route('president.reports.index') }}" class="text-sm font-semibold {{ request()->routeIs('president.reports.*') ? 'text-indigo-400' : 'text-slate-300 hover:text-white' }} transition-colors">Analytics Reports</a>
                         @endif
                     @endauth

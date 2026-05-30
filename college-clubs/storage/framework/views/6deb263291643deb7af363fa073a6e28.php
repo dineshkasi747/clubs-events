@@ -67,11 +67,13 @@
                         <?php if(auth()->user()->isAdmin()): ?>
                             <a href="<?php echo e(route('admin.dashboard')); ?>" class="text-sm font-semibold <?php echo e(request()->routeIs('admin.dashboard') ? 'text-indigo-400' : 'text-slate-300 hover:text-white'); ?> transition-colors">Dashboard</a>
                             <a href="<?php echo e(route('admin.clubs.index')); ?>" class="text-sm font-semibold <?php echo e(request()->routeIs('admin.clubs.index') ? 'text-indigo-400' : 'text-slate-300 hover:text-white'); ?> transition-colors">Club Management</a>
+                            <a href="<?php echo e(route('admin.notifications.index')); ?>" class="text-sm font-semibold <?php echo e(request()->routeIs('admin.notifications.*') ? 'text-indigo-400' : 'text-slate-300 hover:text-white'); ?> transition-colors">Broadcast Alert</a>
                         <?php endif; ?>
 
                         <?php if(auth()->user()->isPresident()): ?>
                             <a href="<?php echo e(route('president.dashboard')); ?>" class="text-sm font-semibold <?php echo e(request()->routeIs('president.dashboard') ? 'text-indigo-400' : 'text-slate-300 hover:text-white'); ?> transition-colors">Club Hub</a>
                             <a href="<?php echo e(route('president.events.index')); ?>" class="text-sm font-semibold <?php echo e(request()->routeIs('president.events.*') ? 'text-indigo-400' : 'text-slate-300 hover:text-white'); ?> transition-colors">Events Portal</a>
+                            <a href="<?php echo e(route('president.notifications.index')); ?>" class="text-sm font-semibold <?php echo e(request()->routeIs('president.notifications.*') ? 'text-indigo-400' : 'text-slate-300 hover:text-white'); ?> transition-colors">Broadcast Alert</a>
                             <a href="<?php echo e(route('president.reports.index')); ?>" class="text-sm font-semibold <?php echo e(request()->routeIs('president.reports.*') ? 'text-indigo-400' : 'text-slate-300 hover:text-white'); ?> transition-colors">Analytics Reports</a>
                         <?php endif; ?>
                     <?php endif; ?>

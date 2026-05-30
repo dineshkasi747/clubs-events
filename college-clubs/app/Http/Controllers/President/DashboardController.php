@@ -60,4 +60,44 @@ class DashboardController extends Controller
             'recentRegistrations' => $recentRegistrations
         ]);
     }
+
+    public function showNotificationsForm(): \Illuminate\View\View
+    {
+        $user = \Illuminate\Support\Facades\Auth::user();
+        $club = $user->club;
+
+        if (!$club) {
+            abort(403, 'Unauthorized.');
+        }
+
+        return view('president.notifications', compact('club'));
+    }
+
+    public function sendBroadcastNotification(\Illuminate\Http\Request $request): \Illuminate\Http\RedirectResponse
+    {
+        $user = \Illuminate\Support\Facades\Auth::user();
+        $club = $user->club;
+
+        if (!$club) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $request->validate([
+            'title' => ['required', 'string', 'max:100'],
+            'body' => ['required', 'string', 'max:250'],
+        ]);
+
+        $dispatched = \App\Services\FcmService::broadcastToStudents(
+            $request->title,
+            $request->body,
+            [
+                'type' => 'club_broadcast',
+                'club_id' => (string)$club->id,
+                'club_name' => $club->name,
+                'sent_by' => 'President'
+            ]
+        );
+
+        return redirect()->back()->with('success', "Notification broadcast dispatched successfully to {$dispatched} student devices for {$club->name}!");
+    }
 }

@@ -18,7 +18,11 @@ Route::middleware('guest')->group(function () {
     Route::post('/login', [LoginController::class, 'login']);
 });
 
-// 2. Authenticated Logout Route
+// 2. Public Payment Gateway Views (accessed from mobile app browser)
+Route::get('/payments/checkout', [\App\Http\Controllers\Api\RegistrationController::class, 'showCheckoutPage'])->name('payment.checkout');
+Route::get('/payments/success', [\App\Http\Controllers\Api\RegistrationController::class, 'showSuccessPage'])->name('payment.success');
+
+// 3. Authenticated Logout Route
 Route::match(['get', 'post'], '/logout', [LoginController::class, 'logout'])
     ->middleware('auth')
     ->name('logout');
@@ -29,6 +33,10 @@ Route::prefix('admin')
     ->name('admin.')
     ->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+        
+        // Custom Notifications Broadcast Center
+        Route::get('/notifications', [AdminController::class, 'showNotificationsForm'])->name('notifications.index');
+        Route::post('/notifications', [AdminController::class, 'sendBroadcastNotification'])->name('notifications.send');
         
         // Password Management Routes
         Route::get('/password', [LoginController::class, 'showPasswordForm'])->name('password.form');
@@ -46,6 +54,10 @@ Route::prefix('president')
     ->name('president.')
     ->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        
+        // Custom Notifications Broadcast Center
+        Route::get('/notifications', [DashboardController::class, 'showNotificationsForm'])->name('notifications.index');
+        Route::post('/notifications', [DashboardController::class, 'sendBroadcastNotification'])->name('notifications.send');
         
         // Password Management Routes
         Route::get('/password', [LoginController::class, 'showPasswordForm'])->name('password.form');

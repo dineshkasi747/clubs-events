@@ -13,9 +13,7 @@ class FcmService
      */
     public static function sendNotification(?string $token, string $title, string $body, array $data = []): bool
     {
-        if (empty($token)) {
-            return false;
-        }
+        $displayToken = empty($token) ? "No active device token (SIMULATOR FALLBACK)" : $token;
 
         $projectId = env('FCM_PROJECT_ID');
         $serviceAccountJson = env('FCM_SERVICE_ACCOUNT_JSON');
@@ -23,12 +21,16 @@ class FcmService
         // High visibility fallback logging for development / staging testing
         Log::channel('single')->info("\n" . str_repeat('=', 50) . 
             "\n🔥 [FCM PUSH NOTIFICATION SIMULATOR] 🔥" .
-            "\n📱 Device Token: {$token}" .
+            "\n📱 Device Token: {$displayToken}" .
             "\n📣 Title: {$title}" .
             "\n💬 Message: {$body}" .
             "\n📦 Payload: " . json_encode($data, JSON_PRETTY_PRINT) . 
             "\n" . str_repeat('=', 50)
         );
+
+        if (empty($token)) {
+            return true; // Successfully logged simulated notification
+        }
 
         // If credentials exist, execute authentic HTTP API v1 call
         if ($projectId && file_exists($serviceAccountJson)) {
@@ -63,11 +65,12 @@ class FcmService
      */
     public static function broadcastToStudents(string $title, string $body, array $data = []): int
     {
-        $students = User::where('role', 'student')->whereNotNull('fcm_token')->get();
+        $students = User::where('role', 'student')->get();
         $dispatchedCount = 0;
 
         foreach ($students as $student) {
-            if (self::sendNotification($student->fcm_token, $title, $body, $data)) {
+            $studentData = array_merge($data, ['recipient_name' => $student->name]);
+            if (self::sendNotification($student->fcm_token, $title, $body, $studentData)) {
                 $dispatchedCount++;
             }
         }

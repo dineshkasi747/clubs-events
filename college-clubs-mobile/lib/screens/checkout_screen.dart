@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/club.dart';
 import '../models/event.dart';
-import '../providers/app_provider.dart';
 import '../core/api_client.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -48,41 +47,190 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
     }
 
-    // UPI PhonePe payment flows
-    if (widget.event.price > 0 && _selectedMethod == 'upi') {
-      _showPhonePeIntentDialog();
-      return;
-    }
-
     setState(() {
       _isProcessing = true;
     });
 
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    
-    // Call backend registration
-    final success = await appProvider.registerForEvent(
-      widget.event.id,
-      paymentMethod: _selectedMethod,
-    );
+    try {
+      // 1. Create Registration on backend
+      final response = await ApiClient.client.post(
+        '/events/${widget.event.id}/register',
+      );
 
-    setState(() {
-      _isProcessing = false;
-    });
+      setState(() {
+        _isProcessing = false;
+      });
 
-    if (mounted) {
-      if (success) {
-        _showSuccessDialog();
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = response.data;
+        final registrationId = data['registration']['id'];
+        
+        if (widget.event.price > 0) {
+          // Paid event: Launch Razorpay Web Checkout
+          final razorpayOrder = data['razorpay_order'];
+          final razorpayKey = data['razorpay_key'];
+          final orderId = razorpayOrder['id'];
+          final amount = razorpayOrder['amount'].toString();
+          
+          final String baseUrl = ApiClient.baseUrl.replaceAll('/api', '');
+          final String checkoutUrl = "$baseUrl/payments/checkout"
+              "?registration_id=$registrationId"
+              "&order_id=$orderId"
+              "&amount=$amount"
+              "&key=$razorpayKey";
+              
+          final Uri uri = Uri.parse(checkoutUrl);
+          
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+            // Open the verification dialog
+            _showVerificationDialog(registrationId);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Failed to open payment gateway. Please try again.'),
+                backgroundColor: Colors.redAccent,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } else {
+          // Free event: instantly approved
+          _showSuccessDialog();
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Registration failed. This event may be full or you may already be registered.'),
+            content: Text('Failed to initiate registration.'),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
+    } catch (e) {
+      setState(() {
+        _isProcessing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
+  }
+
+  void _showVerificationDialog(int registrationId) {
+    bool isVerifying = false;
+    String statusMessage = "Please authorize the transaction in the payment window, and click 'Verify Ticket Status' once complete.";
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: const Color(0xFF111827),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Icon
+                    Container(
+                      height: 64,
+                      width: 64,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4F46E5).withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isVerifying ? Icons.sync : Icons.security,
+                        color: const Color(0xFF818CF8),
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Verify Payment Status',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      statusMessage,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8), height: 1.4),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    if (isVerifying)
+                      const CircularProgressIndicator(color: Color(0xFF4F46E5))
+                    else ...[
+                      ElevatedButton(
+                        onPressed: () async {
+                          setDialogState(() {
+                            isVerifying = true;
+                            statusMessage = "Contacting verification guard on the backend...";
+                          });
+                          
+                          // Check registration status on backend
+                          try {
+                            final response = await ApiClient.client.get('/registrations');
+                            bool isApproved = false;
+                            
+                            if (response.statusCode == 200) {
+                              final List regs = response.data;
+                              final match = regs.firstWhere(
+                                (r) => r['id'] == registrationId,
+                                orElse: () => null,
+                              );
+                              if (match != null && match['status'] == 'approved') {
+                                isApproved = true;
+                              }
+                            }
+                            
+                            if (isApproved) {
+                              Navigator.of(context).pop(); // pop this dialog
+                              _showSuccessDialog(); // show success ticket
+                            } else {
+                              setDialogState(() {
+                                isVerifying = false;
+                                statusMessage = "⚠️ Verification pending. We couldn't confirm your transaction yet. Please ensure you finished payment in the browser wizard.";
+                              });
+                            }
+                          } catch (e) {
+                            setDialogState(() {
+                              isVerifying = false;
+                              statusMessage = "🔴 Network error. Verification failed. Please try again.";
+                            });
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4F46E5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          minimumSize: const Size(double.infinity, 44),
+                        ),
+                        child: const Text('Verify Ticket Status', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                      ),
+                      const SizedBox(height: 10),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text('Cancel / Close', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+                      ),
+                    ]
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showSuccessDialog() {
@@ -310,7 +458,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         style: const TextStyle(fontSize: 14, color: Color(0xFFCBD5E1)),
                       ),
                       Text(
-                        isPaid ? '\$${widget.event.price.toStringAsFixed(2)}' : 'FREE',
+                        isPaid ? '₹${widget.event.price.toStringAsFixed(2)}' : 'FREE',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
@@ -599,235 +747,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  void _showPhonePeIntentDialog() {
-    String pin = "";
-    
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return Dialog(
-              backgroundColor: const Color(0xFF5F259F), // PhonePe Purple
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // PhonePe Title
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.payment, color: Color(0xFF5F259F), size: 20),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'PhonePe Secure UPI',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    
-                    // Transaction details
-                    Text(
-                      'College Clubs & Events'.toUpperCase(),
-                      style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.7), letterSpacing: 1.2),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      widget.event.title,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      '\$${widget.event.price.toStringAsFixed(2)}',
-                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white),
-                    ),
-                    const Divider(color: Colors.white24, height: 28),
-                    
-                    // PIN circles representation
-                    const Text(
-                      'ENTER 4-DIGIT UPI PIN',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(4, (index) {
-                        final filled = pin.length > index;
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 10),
-                          height: 16,
-                          width: 16,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: filled ? Colors.white : Colors.white24,
-                            border: Border.all(color: Colors.white30, width: 1.5),
-                          ),
-                        );
-                      }),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Simulated Numerical Keypad
-                    Column(
-                      children: [
-                        for (var r = 0; r < 3; r++)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                for (var c = 1; c <= 3; c++)
-                                  _buildKeypadButton((r * 3 + c).toString(), () {
-                                    if (pin.length < 4) {
-                                      setDialogState(() {
-                                        pin += (r * 3 + c).toString();
-                                      });
-                                      if (pin.length == 4) {
-                                        _handlePhonePeSuccess(pin);
-                                      }
-                                    }
-                                  }),
-                              ],
-                            ),
-                          ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _buildKeypadButton('C', () {
-                              setDialogState(() {
-                                pin = "";
-                              });
-                            }, isSpecial: true),
-                            _buildKeypadButton('0', () {
-                              if (pin.length < 4) {
-                                setDialogState(() {
-                                  pin += '0';
-                                });
-                                if (pin.length == 4) {
-                                  _handlePhonePeSuccess(pin);
-                                }
-                              }
-                            }),
-                            _buildKeypadButton('⌫', () {
-                              if (pin.isNotEmpty) {
-                                setDialogState(() {
-                                  pin = pin.substring(0, pin.length - 1);
-                                });
-                              }
-                            }, isSpecial: true),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
 
-  void _handlePhonePeSuccess(String pin) {
-    Navigator.of(context).pop(); // Close PhonePe PIN dialog
-    
-    // Show loading spinner
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: const Color(0xFF111827),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: const Padding(
-            padding: EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(color: Color(0xFF4F46E5)),
-                SizedBox(height: 16),
-                Text(
-                  'Authorizing PhonePe UPI payment...',
-                  style: TextStyle(color: Colors.white, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-    
-    // Wait 2 seconds, pop the spinner, and complete the Laravel REST registration
-    Future.delayed(const Duration(seconds: 2), () async {
-      if (mounted) {
-        Navigator.of(context).pop(); // Close spinner
-        
-        setState(() {
-          _isProcessing = true;
-        });
-        
-        final appProvider = Provider.of<AppProvider>(context, listen: false);
-        final success = await appProvider.registerForEvent(
-          widget.event.id,
-          paymentMethod: 'upi_phonepe',
-        );
-        
-        setState(() {
-          _isProcessing = false;
-        });
-        
-        if (mounted) {
-          if (success) {
-            _showSuccessDialog();
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('UPI Registration failed. Please try again.'),
-                backgroundColor: Colors.redAccent,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-        }
-      }
-    });
-  }
-
-  Widget _buildKeypadButton(String label, VoidCallback onTap, {bool isSpecial = false}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        height: 44,
-        width: 56,
-        decoration: BoxDecoration(
-          color: isSpecial ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildUpiAppLogo(String label, Color color, IconData icon) {
     return Column(
