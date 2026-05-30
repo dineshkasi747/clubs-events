@@ -1,0 +1,35 @@
+[
+  {
+    "title": "CodeFest Hackathon 2026",
+    "description": "The ultimate 24-hour programming and design sprint to build functional campus utilities.",
+    "place": "Main Campus Auditorium",
+    "date": "2026-06-15",
+    "volunteers": "President & Executive Team",
+    "club_name": "Coding Club",
+    "images": [
+      "/storage/events/codefest_banner.jpg"
+    ]
+  },
+  {
+    "title": "RoboArena Tournament",
+    "description": "Autonomous rovers compete in a high-stakes obstacle arena for cash prizes.",
+    "place": "Mechanical Engineering Lab B",
+    "date": "2026-06-20",
+    "volunteers": "Robotics Crew",
+    "club_name": "Robotics Club",
+    "images": [
+      "/storage/events/roboarena_banner.jpg"
+    ]
+  },
+  {
+    "title": "Symphony Under the Stars",
+    "description": "An open-air evening concert featuring live acoustic covers, jazz solos, and orchestral highlights.",
+    "place": "Central Lake Lawn",
+    "date": "2026-06-25",
+    "volunteers": "Music Officers",
+    "club_name": "Music Society",
+    "images": [
+      "/storage/events/symphony_banner.jpg"
+    ]
+  }
+]
