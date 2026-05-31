@@ -32,23 +32,45 @@ class FcmService
             return true; // Successfully logged simulated notification
         }
 
+        $resolvedPath = file_exists($serviceAccountJson) ? $serviceAccountJson : base_path($serviceAccountJson);
+
         // If credentials exist, execute authentic HTTP API v1 call
-        if ($projectId && file_exists($serviceAccountJson)) {
+        if ($projectId && file_exists($resolvedPath)) {
             try {
                 // Fetch OAuth token
-                $oauthToken = self::getGoogleAccessToken($serviceAccountJson);
+                $oauthToken = self::getGoogleAccessToken($resolvedPath);
                 
+                $messagePayload = [
+                    'token' => $token,
+                    'notification' => [
+                        'title' => $title,
+                        'body' => $body,
+                    ],
+                    'android' => [
+                        'priority' => 'high',
+                        'notification' => [
+                            'channel_id' => 'high_importance_channel',
+                            'sound' => 'default',
+                            'default_sound' => true,
+                            'default_vibrate_timings' => true,
+                        ]
+                    ]
+                ];
+
+                if (!empty($data)) {
+                    $messagePayload['data'] = array_map('strval', $data);
+                }
+
                 $response = Http::withToken($oauthToken)
                     ->post("https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send", [
-                        'message' => [
-                            'token' => $token,
-                            'notification' => [
-                                'title' => $title,
-                                'body' => $body,
-                            ],
-                            'data' => array_map('strval', $data), // FCM requires strings in data payload
-                        ]
+                        'message' => $messagePayload
                     ]);
+
+                if (!$response->successful()) {
+                    Log::error("🔴 FCM Dispatch Failed with status " . $response->status() . ": " . $response->body());
+                } else {
+                    Log::info("🟢 FCM Dispatch Succeeded!");
+                }
 
                 return $response->successful();
             } catch (\Exception $e) {

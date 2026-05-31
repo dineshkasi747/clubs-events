@@ -19,7 +19,7 @@ class FirebaseHandler {
 
     // Fetch and register Device Token
     try {
-      String? token = await messaging.getToken();
+      String? token = await messaging.getToken().timeout(const Duration(seconds: 3));
       if (token != null) {
         print("🔥 FCM Device Token: $token");
         appProvider.setFcmToken(token);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/club.dart';
 import '../models/event.dart';
 import '../core/api_client.dart';
@@ -43,6 +44,21 @@ class AppProvider with ChangeNotifier {
         _user = response.data['user'];
         await ApiClient.saveToken(token);
         
+        // Try to retrieve real FCM token one more time upon login (with a 3-second timeout to prevent UI hanging)
+        if (_fcmToken == null) {
+          try {
+            final realToken = await FirebaseMessaging.instance
+                .getToken()
+                .timeout(const Duration(seconds: 3));
+            if (realToken != null) {
+              _fcmToken = realToken;
+              print("🔥 Real FCM Token retrieved during login: $realToken");
+            }
+          } catch (e) {
+            print("⚠️ FCM Token retrieval failed/timed out during login: $e");
+          }
+        }
+
         // Register device token with backend upon successful login
         if (_fcmToken == null) {
           // Fallback to a mock FCM token for dev/emulator environments without Google Play Services

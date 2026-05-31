@@ -23,3 +23,9 @@
 *.err
 .DS_Store
 Thumbs.db
+
+# Google/Firebase Private Credentials
+**/firebase-service-account.json
+**/google-services.json
+**/storage/framework/views/*
+
