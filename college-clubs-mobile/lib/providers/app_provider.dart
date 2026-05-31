@@ -1,10 +1,25 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/club.dart';
 import '../models/event.dart';
+import '../models/in_app_notification.dart';
 import '../core/api_client.dart';
 
 class AppProvider with ChangeNotifier {
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  List<InAppNotification> _notifications = [];
+  List<InAppNotification> get notifications => _notifications;
+
+  int get unreadNotificationsCount => _notifications.where((n) => !n.isRead).length;
+
+  bool _isFetchingNotificationDetails = false;
+  bool get isFetchingNotificationDetails => _isFetchingNotificationDetails;
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
@@ -87,6 +102,20 @@ class AppProvider with ChangeNotifier {
     _user = null;
     await ApiClient.clearToken();
     notifyListeners();
+  }
+
+  Future<bool> tryAutoLogin() async {
+    try {
+      final response = await ApiClient.client.get('/me');
+      if (response.statusCode == 200) {
+        _user = response.data;
+        notifyListeners();
+        return true;
+      }
+    } catch (e) {
+      print("⚠️ Auto-login session verify failed/expired: $e");
+    }
+    return false;
   }
 
   Future<void> _registerFcmTokenWithBackend() async {
@@ -190,5 +219,105 @@ class AppProvider with ChangeNotifier {
     _isLoading = false;
     notifyListeners();
     return false;
+  }
+
+  Future<void> loadNotifications() async {
+    try {
+      final raw = await _storage.read(key: 'notifications_history').timeout(const Duration(seconds: 1));
+      if (raw != null) {
+        final List decoded = jsonDecode(raw);
+        _notifications = decoded.map((n) => InAppNotification.fromJson(n)).toList();
+        _notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        notifyListeners();
+      }
+    } catch (e) {
+      print("⚠️ Failed to load notifications: $e");
+    }
+  }
+
+  Future<void> _saveNotificationsToStorage() async {
+    try {
+      final serialized = jsonEncode(_notifications.map((n) => n.toJson()).toList());
+      await _storage.write(key: 'notifications_history', value: serialized);
+    } catch (e) {
+      print("⚠️ Failed to save notifications: $e");
+    }
+  }
+
+  Future<void> addNotification(String title, String body, Map<String, dynamic> payload) async {
+    final newNotification = InAppNotification(
+      id: DateTime.now().millisecondsSinceEpoch.toString() + "_" + title.hashCode.toString(),
+      title: title,
+      body: body,
+      timestamp: DateTime.now(),
+      payload: payload,
+      isRead: false,
+    );
+    _notifications.insert(0, newNotification);
+    notifyListeners();
+    await _saveNotificationsToStorage();
+  }
+
+  Future<void> markAsRead(String id) async {
+    final idx = _notifications.indexWhere((n) => n.id == id);
+    if (idx != -1) {
+      _notifications[idx] = _notifications[idx].copyWith(isRead: true);
+      notifyListeners();
+      await _saveNotificationsToStorage();
+    }
+  }
+
+  Future<void> markAllAsRead() async {
+    for (int i = 0; i < _notifications.length; i++) {
+      if (!_notifications[i].isRead) {
+        _notifications[i] = _notifications[i].copyWith(isRead: true);
+      }
+    }
+    notifyListeners();
+    await _saveNotificationsToStorage();
+  }
+
+  Future<void> clearAllNotifications() async {
+    _notifications.clear();
+    notifyListeners();
+    try {
+      await _storage.delete(key: 'notifications_history');
+    } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>?> fetchDeepLinkDetails(String type, String targetId) async {
+    _isFetchingNotificationDetails = true;
+    notifyListeners();
+
+    try {
+      if (type == 'new_event') {
+        final response = await ApiClient.client.get('/events/$targetId');
+        if (response.statusCode == 200) {
+          final eventData = response.data;
+          final event = Event.fromJson(eventData);
+          final club = Club.fromJson(eventData['club']);
+          _isFetchingNotificationDetails = false;
+          notifyListeners();
+          return {'event': event, 'club': club};
+        }
+      } else if (type == 'club_broadcast') {
+        final response = await ApiClient.client.get('/clubs/$targetId');
+        if (response.statusCode == 200) {
+          final clubData = response.data;
+          final club = Club.fromJson(clubData);
+          final List eventList = clubData['events'] ?? [];
+          _events = eventList.map((e) => Event.fromJson(e)).toList();
+          _isFetchingNotificationDetails = false;
+          notifyListeners();
+          return {'club': club};
+        }
+      }
+    } catch (e) {
+      print("🔴 Failed to fetch deep link details: $e");
+    }
+
+    _isFetchingNotificationDetails = false;
+    notifyListeners();
+    return null;
   }
 }

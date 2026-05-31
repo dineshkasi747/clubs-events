@@ -14,6 +14,30 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _checkingAutoLogin = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  void _checkSession() async {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final success = await appProvider.tryAutoLogin();
+    if (success && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ClubsScreen()),
+      );
+    } else {
+      if (mounted) {
+        setState(() {
+          _checkingAutoLogin = false;
+        });
+      }
+    }
+  }
 
   void _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
@@ -45,6 +69,45 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final appProvider = Provider.of<AppProvider>(context);
+
+    if (_checkingAutoLogin) {
+      return Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF0F172A), Color(0xFF030712)],
+            ),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(
+                  height: 48,
+                  width: 48,
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF4F46E5),
+                    strokeWidth: 3,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                const Text(
+                  'College Clubs & Events',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Restoring secure session...',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       body: Container(
